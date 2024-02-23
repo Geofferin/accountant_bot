@@ -1,12 +1,16 @@
 from aiogram import types
+
+import keyboards
 from dispatcher import dp
 import config
 import re
 from bot import BotDB
-from keyboards import main_keyboard, ikb_e, ikb_s
+from keyboards import main_keyboard, get_inline_keyboard
 from aiogram.dispatcher.filters.state import StatesGroup, State
 from aiogram.dispatcher import FSMContext
 from aiogram.utils.callback_data import CallbackData
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton
+
 
 
 """
@@ -28,8 +32,9 @@ class States(StatesGroup):
 
     input_money = State()
     input_date = State()
+    input_new_category = State()
 
-
+#От этой хуйни надо избавляться
 operation = True  # Отделяет расход от дохода. True = доход, False = расход.
 category = ''  # Категория дохода или расхода
 
@@ -44,24 +49,44 @@ async def start(message: types.Message):
 
 @dp.message_handler(commands=("earned", "spent"))
 async def note(message: types.Message, state: FSMContext) -> None:
+    #ikb = InlineKeyboardMarkup(row_width=3) #не работает, всегда 1 клавиша в линии
     global operation
     if message.text == "/earned":
         operation = True
-        await message.bot.send_message(message.from_user.id, "Select an income category", reply_markup=ikb_e)
+        categories = BotDB.get_categories(user_id=message.from_user.id, operation='income')
     elif message.text == "/spent":
         operation = False
-        await message.bot.send_message(message.from_user.id, "Select a spending category", reply_markup=ikb_s)
+        categories = BotDB.get_categories(user_id=message.from_user.id, operation='spend')
+    await message.bot.send_message(message.from_user.id, "Выберите категорию", reply_markup=keyboards.get_inline_keyboard(categories))
 
 
 @dp.callback_query_handler()
 async def vote_callback(callback: types.CallbackQuery):
-    if callback.data != 'exit':
+    if callback.data == 'add':
+        await callback.bot.send_message(chat_id=callback.message.chat.id, text='Введите название категории\nЕсли их несколько, вводите через пробел')
+        await States.input_new_category.set()
+    if callback.data == 'del':
+        #del_category()
+        pass #РАБОТАЕМ
+    if callback.data not in ['exit', 'add', 'del']:
         global category
         category = callback.data
-        await callback.bot.send_message(chat_id=callback.message.chat.id, text='Enter the amount')
+        await callback.bot.send_message(chat_id=callback.message.chat.id, text='Введите сумму')
         await States.input_money.set()
     await callback.message.delete()
 
+
+@dp.message_handler(state=States.input_new_category)
+async def add_category(message: types.Message, state: FSMContext) -> None:
+    new_category = message.text
+    BotDB.add_category(message.from_user.id, new_category, operation)
+    await message.answer(f'Категории добавлены')
+    await state.finish()
+
+
+def del_category(message: types.Message, state: FSMContext) -> None:
+    categories = BotDB.get_categories(user_id=message.from_user.id, operation='spend')
+    get_inline_keyboard(categories)
 
 @dp.message_handler(state=States.input_money)
 async def load_note(message: types.Message, state: FSMContext) -> None:
@@ -113,67 +138,3 @@ async def load_history(message: types.Message, state: FSMContext) -> None:
             history = BotDB.get_history(period, user_id=message.from_user.id)
             await message.answer(history)
             await state.finish()
-
-# СТАРЫЕ МЕТОДЫ
-# @dp.message_handler(commands=("s", "e"), commands_prefix="/!")
-# async def start(message: types.Message):
-#     cmd_variants = (('/spent', '/s'), ('/earned', '/e'))
-#     operation = '-' if message.text.startswith(cmd_variants[0]) else '+'
-#
-#     # удаляем команду из сообщения, оставляем только саму сумму
-#     value = message.text
-#     for command in cmd_variants:
-#         for j in command:
-#             value = value.replace(j, '').strip()
-#
-#     # убираем все лишние символы из суммы, оставляя только цифры
-#     if(len(value)):
-#         x = re.findall(r"\d+(?:.\d+)?", value)
-#         if(len(x)):
-#             value = float(x[0].replace(',', '.'))
-#
-#             BotDB.add_record(message.from_user.id, operation, value)
-#
-#             if operation == '-':
-#                 await message.reply("✅ Запись о <u><b>расходе</b></u> успешно внесена!")
-#             else:
-#                 await message.reply("✅ Запись о <u><b>доходе</b></u> успешно внесена!")
-#         else:
-#             await message.reply("Не удалось определить сумму!")
-#     else:
-#         await message.reply("Не введена сумма!")
-
-# @dp.message_handler(commands = ("history", "h"), commands_prefix = "/!")
-# async def start(message: types.Message):
-#     cmd_variants = ('/history', '/h', '!history', '!h')
-#     within_als = {
-#         "day": ('today', 'day', 'сегодня', 'день'),
-#         "month": ('month', 'месяц'),
-#         "year": ('year', 'год'),
-#     }
-#
-#     cmd = message.text
-#     for r in cmd_variants:
-#         cmd = cmd.replace(r, '').strip()
-#
-#     within = 'day'
-#     if(len(cmd)):
-#         for k in within_als:
-#             for als in within_als[k]:
-#                 if(als == cmd):
-#                     within = k
-#     print(within)
-#
-#     records = BotDB.get_records(message.from_user.id, within)
-#
-#     if len(records):
-#         answer = f"🕘 История операций за {within_als[within][-1]}\n\n"
-#
-#         for r in records:
-#             answer += "<b>" + ("➖ Расход" if not r[2] else "➕ Доход") + "</b>"
-#             answer += f" - {r[3]}"
-#             answer += f" <i>({r[4]})</i>\n"
-#
-#         await message.reply(answer)
-#     else:
-#         await message.reply("Записей не обнаружено!")

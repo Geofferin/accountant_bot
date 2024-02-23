@@ -22,6 +22,22 @@ class BotDB:
         self.cursor.execute("INSERT INTO users (user_id) VALUES (?)", (user_id,))
         return self.conn.commit()
 
+    def get_categories(self, user_id, operation):
+        """Получаем категории доходов и расходов для пользователя"""
+        if operation == 'income':
+            self.cursor.execute("SELECT income_categories FROM users WHERE user_id = ?", (user_id,))
+        elif operation == 'spend':
+            self.cursor.execute("SELECT spend_categories FROM users WHERE user_id = ?", (user_id,))
+        result = str(self.cursor.fetchall()).replace('[', '').replace('(', '').replace(',', '').replace(')', '').replace(']', '').replace("'", '').split()
+        return result
+
+    def add_category(self, user_id, new_category, operation):
+        if operation:
+            self.cursor.execute("UPDATE users SET income_categories = income_categories || ? WHERE user_id = ?", (new_category, user_id))
+        if not operation:
+            self.cursor.execute("UPDATE users SET spend_categories = spend_categories || ? WHERE user_id = ?", (new_category, user_id))
+        return self.conn.commit()
+
     '''
     TO DO:
     ВО ПЕРВЫХ, ОТРЕДАКТИРОВАТЬ САМУ БАЗУ, РАЗДЕЛИВ ДОХОДЫ И РАСХОДЫ = DONE
