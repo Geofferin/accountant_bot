@@ -22,9 +22,23 @@ TO DO:
         1. добавить столбцы для категорий в обе таблицы - DONE
         2. ВРЕМЕННО. сделать запись тестовой категории, иначе бот не будет работать. - DONE
         3. добавить клавиатуру со стандартными категориями, переписать логику так, чтобы сначала открывалась она и после выбора категории можно было ввести сумму - DONE
-        4. прописать возможность добавлять свои категории
+        4. прописать возможность добавлять свои категории - DONE
         5. при выводе истории должны запрашиваться конкретные категории, записи по которым и будут выводиться. Но также оставить возможность выводить всю историю.
     ДОБАВИТЬ НЕОБЯЗАТЕЛЬНОЕ ОПИСАНИЕ ЗАПИСИ. П-ЛЬ МОЖЕТ ДАТЬ ОПИСАНИЕ, А МОЖЕТ НЕ ДАВАТЬ.
+    
+Баги:
+    Критические:
+        бот сыпется, если слишком большая длина одной категории. сделать обработку
+        глобальные переменные
+        изначально должны вводиться базовые категории, иначе будет None и его нельзя будет убрать
+    Остальные:
+        запретить добавление дублирующей категории
+        Если кто то добавит категорию с названием начинающимся с del_, то вместо записи, категория удалиться
+        Проверяет длинну категории целиком, будет ошибка если ввести несколько категорий на общую длинну 44 символа
+        не дать ввести команду в качестве названия категории
+    Полировка:
+        заменить технические названия и сделать вывод описания в начале, сделать удаление сообщений с командами
+        сделать код более читаемым. Разгрузить колбек хендлер и основной файл. Состояния в отдельный файл
 """
 
 
@@ -43,18 +57,29 @@ category = ''  # Категория дохода или расхода
 async def start(message: types.Message):
     if (not BotDB.user_exists(message.from_user.id)):
         BotDB.add_user(message.from_user.id)
+    await message.bot.send_message(message.from_user.id, "Добро пожаловать!", reply_markup=main_keyboard)
 
-    await message.bot.send_message(message.from_user.id, "Welcome!", reply_markup=main_keyboard)
+
+@dp.message_handler(commands="Баланс")
+async def balance(message: types.Message, state: FSMContext) -> None:
+    balance = BotDB.get_balance(user_id=message.from_user.id)
+    await message.answer(f'Ваш текущий баланс: {round(balance, 2)} ₽')
+
+# сейчас кнопки выглядят хуево, с / в начале. а хендлер для записи вообще улавливает все сообщения. Ни один хендлер для работы с сообщениями, разместить ниже не получится
+# можно попробовать запихнуть все в один
+@dp.message_handler(commands="История")
+async def history(message: types.Message, state: FSMContext) -> None:
+    await message.bot.send_message(message.from_user.id, "Enter the number of days for which the transaction history is needed")
+    await States.input_date.set()
 
 
-@dp.message_handler(commands=("earned", "spent"))
+@dp.message_handler()#commands=("Записать_доход", "Записать расход"))
 async def note(message: types.Message, state: FSMContext) -> None:
-    #ikb = InlineKeyboardMarkup(row_width=3) #не работает, всегда 1 клавиша в линии
     global operation
-    if message.text == "/earned":
+    if message.text == "Записать доход":
         operation = True
         categories = BotDB.get_categories(user_id=message.from_user.id, operation='income')
-    elif message.text == "/spent":
+    elif message.text == "Записать расход":
         operation = False
         categories = BotDB.get_categories(user_id=message.from_user.id, operation='spend')
     await message.bot.send_message(message.from_user.id, "Выберите категорию", reply_markup=keyboards.get_inline_keyboard(categories))
@@ -62,13 +87,26 @@ async def note(message: types.Message, state: FSMContext) -> None:
 
 @dp.callback_query_handler()
 async def vote_callback(callback: types.CallbackQuery):
+    print(callback.data)
     if callback.data == 'add':
         await callback.bot.send_message(chat_id=callback.message.chat.id, text='Введите название категории\nЕсли их несколько, вводите через пробел')
         await States.input_new_category.set()
-    if callback.data == 'del':
-        #del_category()
-        pass #РАБОТАЕМ
-    if callback.data not in ['exit', 'add', 'del']:
+
+    elif callback.data == 'remove':  # Эту фигню надо вынести в отдельную функцию
+        if operation:
+            categories = BotDB.get_categories(user_id=callback.from_user.id, operation='income')
+        if not operation:
+            categories = BotDB.get_categories(user_id=callback.from_user.id, operation='spend')
+        await callback.bot.send_message(chat_id=callback.message.chat.id, text='Какую категорию удалять?', reply_markup=keyboards.del_category(categories))
+
+    elif callback.data[:4] == 'del_': # Если кто то добавит категорию с названием начинающимся с del_, то вместо записи, категория удалиться
+        BotDB.del_category(user_id=callback.from_user.id, category_del=callback.data.replace('del_', ''), operation=operation)
+        await callback.bot.send_message(chat_id=callback.message.chat.id, text='Категория удалена')
+
+    elif callback.data == 'exit':
+        pass
+
+    else:
         global category
         category = callback.data
         await callback.bot.send_message(chat_id=callback.message.chat.id, text='Введите сумму')
@@ -78,15 +116,13 @@ async def vote_callback(callback: types.CallbackQuery):
 
 @dp.message_handler(state=States.input_new_category)
 async def add_category(message: types.Message, state: FSMContext) -> None:
-    new_category = message.text
-    BotDB.add_category(message.from_user.id, new_category, operation)
-    await message.answer(f'Категории добавлены')
-    await state.finish()
+    if len(message.text) < 44:  # Проверяет длинну категории целиком, будет ошибка если ввести несколько категорий на общую длинну 44 символа
+        BotDB.add_category(message.from_user.id, f' {message.text}', operation)
+        await message.answer(f'Категории добавлены')
+        await state.finish()
+    else:
+        await message.reply('Максимальная длинна названия - 43 символа')
 
-
-def del_category(message: types.Message, state: FSMContext) -> None:
-    categories = BotDB.get_categories(user_id=message.from_user.id, operation='spend')
-    get_inline_keyboard(categories)
 
 @dp.message_handler(state=States.input_money)
 async def load_note(message: types.Message, state: FSMContext) -> None:
@@ -94,17 +130,17 @@ async def load_note(message: types.Message, state: FSMContext) -> None:
     try:
         float(value)
     except ValueError:
-        await message.reply('You must enter a number')
+        await message.reply('Необходимо ввести число')
     else:
         if float(value) >= 0.01:
             if len(value) < 13:  # Можно было добавить через and выше, но пришлось бы писать об этом в ошибке, мало кто будет вводить гигантские числа
                 if operation:
                     BotDB.add_income(message.from_user.id, value, category)
-                    await message.answer(f'Nice, you earned {value} money\nIncome is recorded')
+                    await message.answer(f'Доход {value} ₽ записан')
                     await state.finish()
                 if not operation:
                     BotDB.add_cost(message.from_user.id, value, category)
-                    await message.answer(f'Spending {value} money is recorded')
+                    await message.answer(f'Расход {value} ₽ записан')
                     await state.finish()
             else:
                 await message.reply('Неплохо...\nНо я не поверю что ты оперируешь такими суммами)')
@@ -112,19 +148,7 @@ async def load_note(message: types.Message, state: FSMContext) -> None:
             await message.reply('Сумма должна быть не меньше 0.01 ₽')
 
 
-@dp.message_handler(commands="balance")
-async def balance(message: types.Message, state: FSMContext) -> None:
-    balance = BotDB.get_balance(user_id=message.from_user.id)
-    await message.answer(f'Current balance is: {round(balance, 2)} ₽')
-
-
-@dp.message_handler(commands="history")
-async def history(message: types.Message, state: FSMContext) -> None:
-    await message.bot.send_message(message.from_user.id, "Enter the number of days for which the transaction history is needed")
-    await States.input_date.set()
-
-
-@dp.message_handler(state=States.input_date)  # Не помешала бы сортировка по дате и времени для всего списка, а не для доходов и расходов по отдельности.
+@dp.message_handler(state=States.input_date)
 async def load_history(message: types.Message, state: FSMContext) -> None:
     period = message.text
     try:

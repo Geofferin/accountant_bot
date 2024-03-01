@@ -22,6 +22,7 @@ class BotDB:
         self.cursor.execute("INSERT INTO users (user_id) VALUES (?)", (user_id,))
         return self.conn.commit()
 
+    """В этих двух функциях используется глобальная переменная"""
     def get_categories(self, user_id, operation):
         """Получаем категории доходов и расходов для пользователя"""
         if operation == 'income':
@@ -34,8 +35,15 @@ class BotDB:
     def add_category(self, user_id, new_category, operation):
         if operation:
             self.cursor.execute("UPDATE users SET income_categories = income_categories || ? WHERE user_id = ?", (new_category, user_id))
-        if not operation:
+        elif not operation:
             self.cursor.execute("UPDATE users SET spend_categories = spend_categories || ? WHERE user_id = ?", (new_category, user_id))
+        return self.conn.commit()
+
+    def del_category(self, user_id, category_del, operation):
+        if operation:
+            self.cursor.execute("UPDATE users SET income_categories = REPLACE(income_categories, ?, '') WHERE user_id = ?", (category_del, user_id))
+        elif not operation:
+            self.cursor.execute("UPDATE users SET spend_categories = REPLACE(spend_categories, ?, '') WHERE user_id = ?", (category_del, user_id))
         return self.conn.commit()
 
     '''
