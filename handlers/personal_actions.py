@@ -6,9 +6,9 @@ import config
 import re
 from bot import BotDB
 from keyboards import main_keyboard, get_inline_keyboard
-from aiogram.dispatcher.filters.state import StatesGroup, State
-from aiogram.dispatcher import FSMContext
-from aiogram.utils.callback_data import CallbackData
+from aiogram.filters.state import StatesGroup, State
+from aiogram.fsm.context import FSMContext
+from aiogram.filters.callback_data import CallbackData
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton
 
 
