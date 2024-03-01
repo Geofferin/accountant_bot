@@ -62,6 +62,7 @@ async def balance(message: types.Message, state: FSMContext) -> None:
 # сейчас кнопки выглядят хуево, с / в начале. а хендлер для записи вообще улавливает все сообщения. Ни один хендлер для работы с сообщениями, разместить ниже не получится
 # можно попробовать запихнуть все в один
 
+
 @router.message(Command("История"))
 async def history(message: types.Message, state: FSMContext) -> None:
     await message.bot.send_message(message.from_user.id,
@@ -72,25 +73,22 @@ async def history(message: types.Message, state: FSMContext) -> None:
 @router.message(F.text.in_(["Записать доход", "Записать расход"]))
 async def note(message: types.Message, state: FSMContext) -> None:
     global operation
-    print(message.text)
     if message.text == "Записать доход":
         operation = True
         categories = BotDB.get_categories(user_id=message.from_user.id, operation='income')
     elif message.text == "Записать расход":
         operation = False
         categories = BotDB.get_categories(user_id=message.from_user.id, operation='spend')
-    await message.bot.send_message(message.from_user.id, "Выберите категорию",
-                                   reply_markup= keyboards.get_inline_keyboard(categories))
+    await message.bot.send_message(message.from_user.id, "Выберите категорию", reply_markup=keyboards.get_inline_keyboard(categories))
 
 
 @router.callback_query()
 async def vote_callback(callback: types.CallbackQuery, state: FSMContext):
-    print(callback.data)
     if callback.data == 'add':
         await callback.bot.send_message(chat_id=callback.message.chat.id, text='Введите название категории\nЕсли их несколько, вводите через пробел')
         await state.set_state(States.input_new_category)
 
-    elif callback.data == 'remove':  # Эту фигню надо вынести в отдельную функцию
+    elif callback.data == 'remove':
         if operation:
             categories = BotDB.get_categories(user_id=callback.from_user.id, operation='income')
         if not operation:
