@@ -1,10 +1,11 @@
 import sqlite3
+import os
 
+class Database:
 
-class BotDB:
-
-    def __init__(self, db_file):
-        self.conn = sqlite3.connect(db_file)
+    def __init__(self):
+        path_to_bd = os.path.join(os.path.dirname(__file__), 'db.db')
+        self.conn = sqlite3.connect(path_to_bd)
         self.cursor = self.conn.cursor()
 
     def user_exists(self, user_id):

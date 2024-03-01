@@ -1,8 +1,9 @@
 from aiogram import types
-from aiogram.dispatcher.filters import BoundFilter
-import config
+from aiogram.filters import BaseFilter
+from config import config
 
-class IsOwnerFilter(BoundFilter):
+
+class IsOwnerFilter(BaseFilter):
     """
     Custom filter "is_owner".
     """
@@ -14,7 +15,7 @@ class IsOwnerFilter(BoundFilter):
     async def check(self, message: types.Message):
         return message.from_user.id == config.BOT_OWNER
 
-class IsAdminFilter(BoundFilter):
+class IsAdminFilter(BaseFilter):
     """
     Filter that checks for admin rights existence
     """
@@ -28,7 +29,7 @@ class IsAdminFilter(BoundFilter):
         return member.is_chat_admin() == self.is_admin
 
 
-class MemberCanRestrictFilter(BoundFilter):
+class MemberCanRestrictFilter(BaseFilter):
     """
     Filter that checks member ability for restricting
     """
