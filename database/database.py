@@ -1,5 +1,7 @@
-import sqlite3
 import os
+import sqlite3
+from datetime import datetime
+from itertools import chain
 
 
 class Database:
@@ -9,39 +11,74 @@ class Database:
         self.conn = sqlite3.connect(path_to_bd)
         self.cursor = self.conn.cursor()
 
+        self.cursor.execute('''CREATE TABLE IF NOT EXISTS users(
+        id INTEGER PRIMARY KEY,
+        join_data DEFAULT (datetime('now','localtime')))''')
+        self.cursor.execute('''CREATE TABLE IF NOT EXISTS costs(
+        id INTEGER PRIMARY KEY,
+        value INTEGER NOT NULL,
+        date DEFAULT (datetime('now','localtime')),
+        user_id INTEGER NOT NULL,
+        category_id INTEGER NOT NULL)''')
+        self.cursor.execute('''
+        CREATE TABLE IF NOT EXISTS categories(
+        id INTEGER PRIMARY KEY,
+        name TEXT NOT NULL,
+        user_id INTEGER NOT NULL,
+        type TEXT NOT NULL
+        )''')
+        self.cursor.execute('''
+        CREATE TABLE IF NOT EXISTS incomes(
+        id INTEGER PRIMARY KEY,
+        value INTEGER NOT NULL,
+        date DEFAULT (datetime('now','localtime')),
+        user_id INTEGER NOT NULL,
+        category_id INTEGER NOT NULL)''')
+
+        self.conn.commit()
+
     def user_exists(self, user_id):
         """Проверяем, есть ли юзер в базе"""
-        result = self.cursor.execute("SELECT id FROM users WHERE user_id = ?", (user_id,))
-        return bool(len(result.fetchall()))
+        result = self.cursor.execute("SELECT id FROM users WHERE id = ?", (user_id,))
+        result = result.fetchall()
+        print(result)
+        return bool(result)
 
     def add_user(self, user_id):
         """Добавляем юзера в базу"""
-        self.cursor.execute("INSERT INTO users (user_id) VALUES (?)", (user_id,))
+        self.cursor.execute("INSERT INTO users (id) VALUES (?)", (user_id,))
         return self.conn.commit()
 
     """В этих двух функциях используется глобальная переменная"""
+
     def get_categories(self, user_id, operation):
         """Получаем категории доходов и расходов для пользователя"""
         if operation == 'income':
-            self.cursor.execute("SELECT income_categories FROM users WHERE user_id = ?", (user_id,))
+            self.cursor.execute("SELECT name FROM categories WHERE user_id = ? and type = 'income'", (user_id,))
         elif operation == 'spend':
-            self.cursor.execute("SELECT spend_categories FROM users WHERE user_id = ?", (user_id,))
-        result = str(self.cursor.fetchall()).replace('[', '').replace('(', '').replace(',', '').replace(')', '').replace(']', '').replace("'", '').split()
+            self.cursor.execute("SELECT name FROM categories WHERE user_id = ? and type = 'spend'", (user_id,))
+        result = str(self.cursor.fetchall()).replace('[', '').replace('(', '').replace(',', '').replace(')', '').replace(']', '').replace(
+            "'", '').split()
         return result
 
     def add_category(self, user_id, new_category, operation):
         if operation:
-            self.cursor.execute("UPDATE users SET income_categories = income_categories || ? WHERE user_id = ?", (new_category, user_id))
+            self.cursor.execute('''INSERT INTO categories (name, user_id, type) VALUES (?, ?, ?)''',
+                                (new_category, user_id, 'income'))
         elif not operation:
-            self.cursor.execute("UPDATE users SET spend_categories = spend_categories || ? WHERE user_id = ?", (new_category, user_id))
+            self.cursor.execute('''INSERT INTO categories (name, user_id, type) VALUES (?, ?, ?)''',
+                                (new_category, user_id, 'spend'))
         return self.conn.commit()
 
     def del_category(self, user_id, category_del, operation):
         if operation:
-            self.cursor.execute("UPDATE users SET income_categories = REPLACE(income_categories, ?, '') WHERE user_id = ?", (category_del, user_id))
+            print(category_del)
+            self.cursor.execute('''DELETE FROM categories WHERE user_id = ? and name = ? and type = ?''',
+                                (user_id, category_del, 'income'))
         elif not operation:
-            self.cursor.execute("UPDATE users SET spend_categories = REPLACE(spend_categories, ?, '') WHERE user_id = ?", (category_del, user_id))
-        return self.conn.commit()
+            self.cursor.execute('''DELETE FROM categories WHERE user_id = ? and name = ? and type = ?''',
+                                (user_id, category_del, 'spend'))
+        self.conn.commit()
 
     '''
     TO DO:
@@ -55,38 +92,64 @@ class Database:
 
     def add_income(self, user_id, value, category):
         """Создаем запись о доходах"""
-        self.cursor.execute("INSERT INTO incomes (value, category, user_id) VALUES (?, ?, ?)", (value, category, user_id))
-        return self.conn.commit()
+        category_id = self.cursor.execute('SELECT id FROM categories WHERE user_id = ? and name = ? and type = ?',
+                                          (user_id, category, 'income'))
+        category_id = category_id.fetchall()[0][0]
+        self.cursor.execute("INSERT INTO incomes (value, category_id, user_id) VALUES (?, ?, ?)",
+                            (value, category_id, user_id))
+        self.conn.commit()
 
     def add_cost(self, user_id, value, category):
         """Создаем запись о расходах"""
-        self.cursor.execute("INSERT INTO costs (value, category, user_id) VALUES (?, ?, ?)", (value, category, user_id))
-        return self.conn.commit()
+        category_id = self.cursor.execute('SELECT id FROM categories WHERE user_id = ? and name = ? and type = ?',
+                                          (user_id, category, 'spend'))
+        category_id = category_id.fetchall()[0][0]
+        self.cursor.execute("INSERT INTO costs (value, category_id, user_id) VALUES (?, ?, ?)",
+                            (value, category_id, user_id))
+        self.conn.commit()
 
     def get_balance(self, user_id):
         """Получаем разницу мержу всеми доходами и расходами - текущий баланс"""
-        total_income = 0
-        self.cursor.execute("SELECT value FROM incomes WHERE user_id = ?", (user_id,))
-        for i in self.cursor.fetchall():
-            total_income += float(str(i).replace('\'', '').replace('(', '').replace(')', '').replace(',', ''))
-
-        total_costs = 0
-        self.cursor.execute("SELECT value FROM costs WHERE user_id = ?", (user_id,))
-        for i in self.cursor.fetchall():
-            total_costs += float(str(i).replace('\'', '').replace('(', '').replace(')', '').replace(',', ''))
-
+        incomes = self.cursor.execute("SELECT value FROM incomes WHERE user_id = ?", (user_id,)).fetchall()
+        costs = self.cursor.execute('SELECT value FROM costs WHERE user_id = ?', (user_id,)).fetchall()
+        total_income = sum(chain.from_iterable(incomes))
+        total_costs = sum(chain.from_iterable(costs))
         return total_income - total_costs
 
     def get_history(self, period, user_id):
         """Получаем историю за нужный период"""
-        self.cursor.execute(f"""SELECT date, value, category FROM incomes WHERE user_id = ? AND date BETWEEN datetime('now', '-{period} days')
-                                AND datetime('now', 'localtime') ORDER BY date""", (user_id,))
-        history = 'income: '
-        history += '\nincome: '.join(map(str, self.cursor.fetchall()))
-        history += '\n\ncost: '
-        self.cursor.execute(f"""SELECT date, value, category FROM costs WHERE user_id = ? AND date BETWEEN datetime('now', '-{period} days') 
-                                AND datetime('now', 'localtime') ORDER BY date""", (user_id,))
-        history += '\ncost: '.join(map(str, self.cursor.fetchall()))
+        self.cursor.execute(f'''
+        SELECT
+            incomes.date,
+            incomes.value,
+            categories.name
+        FROM incomes
+        JOIN categories ON incomes.category_id = categories.id
+        WHERE incomes.user_id = ?
+            AND incomes.date BETWEEN datetime('now', '-{period} days') AND datetime('now', 'localtime')
+        ORDER BY incomes.date''', (user_id,))
+
+
+        history = 'income:\n'
+        for date, value, category in self.cursor.fetchall():
+            history += f'    Категория: {category}\n'
+            history += f'    Дата: {date}\n'
+            history += f'    Значение: {value}\n\n'
+        history += '\ncost:\n'
+        self.cursor.execute(f'''
+                SELECT
+                    costs.date,
+                    costs.value,
+                    categories.name
+                FROM costs
+                JOIN categories ON costs.category_id = categories.id
+                WHERE costs.user_id = ?
+                    AND costs.date BETWEEN datetime('now', '-{period} days') AND datetime('now', 'localtime')
+                    ORDER BY costs.date''', (user_id,))
+        for date, value, category in self.cursor.fetchall():
+            history += f'    Категория: {category}\n'
+            history += f'    Дата: {date}\n'
+            history += f'    Значение: {value}\n\n'
         return history
 
     def close(self):
