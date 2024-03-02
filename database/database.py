@@ -129,10 +129,13 @@ class Database:
 
 
         history = 'income:\n'
+        total = 0
         for date, value, category in self.cursor.fetchall():
             history += f'    Категория: {category}\n'
             history += f'    Дата: {date}\n'
-            history += f'    Значение: {value}\n\n'
+            history += f'    Значение: {value} рублей\n'
+            total += value
+        history += total and f"Общая сумма доходов: {total} рублей\n\n" or ''
         history += '\ncost:\n'
         self.cursor.execute(f'''
                 SELECT
@@ -144,12 +147,17 @@ class Database:
                 WHERE costs.user_id = ?
                     AND costs.date BETWEEN datetime('now', '-{period} days') AND datetime('now', 'localtime')
                     ORDER BY costs.date''', (user_id,))
+        total = 0
         for date, value, category in self.cursor.fetchall():
             history += f'    Категория: {category}\n'
             history += f'    Дата: {date}\n'
-            history += f'    Значение: {value}\n\n'
+            history += f'    Значение: {value} рублей\n'
+            total += value
+        history += total and f"Общая сумма расходов: {total} рублей\n\n" or ''
         return history
 
     def close(self):
         """Закрываем соединение с БД"""
         self.conn.close()
+
+
