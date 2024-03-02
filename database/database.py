@@ -1,6 +1,5 @@
 import os
 import sqlite3
-from datetime import datetime
 from itertools import chain
 
 
@@ -11,23 +10,23 @@ class Database:
         self.conn = sqlite3.connect(path_to_bd)
         self.cursor = self.conn.cursor()
 
-        self.cursor.execute('''CREATE TABLE IF NOT EXISTS users(
+        self.cursor.executescript('''CREATE TABLE IF NOT EXISTS users(
         id INTEGER PRIMARY KEY,
-        join_data DEFAULT (datetime('now','localtime')))''')
-        self.cursor.execute('''CREATE TABLE IF NOT EXISTS costs(
+        join_data DEFAULT (datetime('now','localtime')));
+        
+        CREATE TABLE IF NOT EXISTS costs(
         id INTEGER PRIMARY KEY,
         value INTEGER NOT NULL,
         date DEFAULT (datetime('now','localtime')),
         user_id INTEGER NOT NULL,
-        category_id INTEGER NOT NULL)''')
-        self.cursor.execute('''
+        category_id INTEGER NOT NULL);
+        
         CREATE TABLE IF NOT EXISTS categories(
         id INTEGER PRIMARY KEY,
         name TEXT NOT NULL,
         user_id INTEGER NOT NULL,
-        type TEXT NOT NULL
-        )''')
-        self.cursor.execute('''
+        type TEXT NOT NULL);
+        
         CREATE TABLE IF NOT EXISTS incomes(
         id INTEGER PRIMARY KEY,
         value INTEGER NOT NULL,
@@ -127,7 +126,6 @@ class Database:
             AND incomes.date BETWEEN datetime('now', '-{period} days') AND datetime('now', 'localtime')
         ORDER BY incomes.date''', (user_id,))
 
-
         history = 'income:\n'
         total = 0
         for date, value, category in self.cursor.fetchall():
@@ -161,5 +159,3 @@ class Database:
     def close(self):
         """Закрываем соединение с БД"""
         self.conn.close()
-
-
