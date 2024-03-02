@@ -41,7 +41,6 @@ class Database:
         """Проверяем, есть ли юзер в базе"""
         result = self.cursor.execute("SELECT id FROM users WHERE id = ?", (user_id,))
         result = result.fetchall()
-        print(result)
         return bool(result)
 
     def add_user(self, user_id):
@@ -72,7 +71,6 @@ class Database:
 
     def del_category(self, user_id, category_del, operation):
         if operation:
-            print(category_del)
             self.cursor.execute('''DELETE FROM categories WHERE user_id = ? and name = ? and type = ?''',
                                 (user_id, category_del, 'income'))
         elif not operation:
