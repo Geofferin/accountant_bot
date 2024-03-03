@@ -61,21 +61,17 @@ class Database:
         return result
 
     def add_category(self, user_id, new_category, operation):
-        if operation:
-            self.cursor.execute('''INSERT INTO categories (name, user_id, type) VALUES (?, ?, ?)''',
-                                (new_category, user_id, 'income'))
-        elif not operation:
-            self.cursor.execute('''INSERT INTO categories (name, user_id, type) VALUES (?, ?, ?)''',
-                                (new_category, user_id, 'spend'))
+        if operation == 'income':
+            self.cursor.execute('''INSERT INTO categories (name, user_id, type) VALUES (?, ?, ?)''', (new_category, user_id, 'income'))
+        elif operation == 'spend':
+            self.cursor.execute('''INSERT INTO categories (name, user_id, type) VALUES (?, ?, ?)''', (new_category, user_id, 'spend'))
         return self.conn.commit()
 
     def del_category(self, user_id, category_del, operation):
-        if operation:
-            self.cursor.execute('''DELETE FROM categories WHERE user_id = ? and name = ? and type = ?''',
-                                (user_id, category_del, 'income'))
-        elif not operation:
-            self.cursor.execute('''DELETE FROM categories WHERE user_id = ? and name = ? and type = ?''',
-                                (user_id, category_del, 'spend'))
+        if operation == 'income':
+            self.cursor.execute('''DELETE FROM categories WHERE user_id = ? and name = ? and type = ?''', (user_id, category_del, 'income'))
+        elif operation == 'spend':
+            self.cursor.execute('''DELETE FROM categories WHERE user_id = ? and name = ? and type = ?''', (user_id, category_del, 'spend'))
         self.conn.commit()
 
     '''
@@ -126,13 +122,11 @@ class Database:
         WHERE incomes.user_id = ?
             AND incomes.date BETWEEN datetime('now', '-{period} days') AND datetime('now', 'localtime')
         ORDER BY incomes.date''', (user_id,))
-
-
         history = 'income:\n'
         for date, value, category in self.cursor.fetchall():
             history += f'    Категория: {category}\n'
             history += f'    Дата: {date}\n'
-            history += f'    Значение: {value}\n\n'
+            history += f'    Сумма: {value} ₽\n\n'
         history += '\ncost:\n'
         self.cursor.execute(f'''
                 SELECT
@@ -147,7 +141,7 @@ class Database:
         for date, value, category in self.cursor.fetchall():
             history += f'    Категория: {category}\n'
             history += f'    Дата: {date}\n'
-            history += f'    Значение: {value}\n\n'
+            history += f'    Сумма: {value} ₽\n\n'
         return history
 
     def close(self):
