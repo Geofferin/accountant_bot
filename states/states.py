@@ -4,6 +4,7 @@ from aiogram.filters import StateFilter
 
 storage = MemoryStorage()
 
+
 class States(StatesGroup):
     default = default_state
     input_money = State()
