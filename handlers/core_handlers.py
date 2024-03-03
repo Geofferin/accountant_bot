@@ -5,7 +5,7 @@ from aiogram.fsm.context import FSMContext
 
 from database.database import Database
 from keyboards import keyboards
-from keyboards.keyboards import main_keyboard
+from keyboards.keyboards import main_menu_kb
 from states.states import StateFilter, States
 
 """
@@ -45,7 +45,13 @@ async def start(message: types.Message, state: FSMContext):
     if not BotDB.user_exists(message.from_user.id):
         BotDB.add_user(message.from_user.id)
     await state.set_state(States.default)
-    await message.bot.send_message(message.from_user.id, "Добро пожаловать!", reply_markup=main_keyboard)
+    await message.bot.send_message(message.from_user.id, "Добро пожаловать!", reply_markup = main_menu_kb())
+
+
+@router.message(~StateFilter(States.default), Command('cancel'))
+async def cancel(message: types.Message, state: FSMContext) -> None:
+    await message.answer('Возврат в главное меню')
+    await start(message, state)
 
 
 @router.message(Command("Баланс"))
@@ -63,11 +69,11 @@ async def history(message: types.Message, state: FSMContext) -> None:
 @router.message(F.text.in_(["Записать доход", "Записать расход"]))
 async def note(message: types.Message, state: FSMContext) -> None:
     if message.text == "Записать доход":
-        await state.update_data(operation='income')
+        await state.update_data(operation = 'income')
         operation = True
         categories = BotDB.get_categories(user_id = message.from_user.id, operation = 'income')
     elif message.text == "Записать расход":
-        await state.update_data(operation='spend')
+        await state.update_data(operation = 'spend')
         operation = False
         categories = BotDB.get_categories(user_id = message.from_user.id, operation = 'spend')
     await message.bot.send_message(message.from_user.id, "Выберите категорию", reply_markup = keyboards.get_inline_keyboard(categories))
@@ -83,21 +89,24 @@ async def vote_callback(callback: types.CallbackQuery, state: FSMContext):
 
     elif callback.data == 'remove':
         if action['operation'] == 'income':
-            categories = BotDB.get_categories(user_id=callback.from_user.id, operation='income')
+            categories = BotDB.get_categories(user_id = callback.from_user.id, operation = 'income')
         elif action['operation'] == 'spend':
-            categories = BotDB.get_categories(user_id=callback.from_user.id, operation='spend')
-        await callback.bot.send_message(chat_id=callback.message.chat.id, text='Какую категорию удалять?', reply_markup=keyboards.del_category(categories))
+            categories = BotDB.get_categories(user_id = callback.from_user.id, operation = 'spend')
+        await callback.bot.send_message(chat_id = callback.message.chat.id, text = 'Какую категорию удалять?',
+                                        reply_markup = keyboards.del_category(categories))
 
-    elif callback.data[:4] == 'del_':  # Если кто то добавит категорию с названием начинающимся с del_, то вместо записи, категория удалиться
-        BotDB.del_category(user_id = callback.from_user.id, category_del = callback.data.replace('del_', ''), operation=action['operation'])
+    elif callback.data[
+         :4] == 'del_':  # Если кто то добавит категорию с названием начинающимся с del_, то вместо записи, категория удалиться
+        BotDB.del_category(user_id = callback.from_user.id, category_del = callback.data.replace('del_', ''),
+                           operation = action['operation'])
         await callback.bot.send_message(chat_id = callback.message.chat.id, text = 'Категория удалена')
 
     elif callback.data == 'exit':
         pass
 
     else:
-        await state.update_data(category=callback.data)
-        await callback.bot.send_message(chat_id=callback.message.chat.id, text='Введите сумму')
+        await state.update_data(category = callback.data)
+        await callback.bot.send_message(chat_id = callback.message.chat.id, text = 'Введите сумму')
         await state.set_state(States.input_money)
     await callback.message.delete()
 
@@ -107,7 +116,7 @@ async def add_category(message: types.Message, state: FSMContext) -> None:
     action = await state.get_data()
     if len(message.text) < 44:  # Проверяет длинну категории целиком, будет ошибка если ввести несколько категорий на общую длинну 44 символа
         for i in message.text.split():  # Специально написал i, потому что в прошлый раз запутался из-за названия переменных
-            BotDB.add_category(message.from_user.id, i, operation=action['operation'])
+            BotDB.add_category(message.from_user.id, i, operation = action['operation'])
         await message.answer(f'Категории добавлены')
     else:
         await message.reply('Максимальная длинна названия - 43 символа')
