@@ -113,64 +113,30 @@ class Database:
         total_costs = sum(chain.from_iterable(costs))
         return total_income - total_costs
 
-    def get_history_for_all_categories(self, period, user_id):
+    def get_history(self, period, user_id, categories = tuple()):
         """Получаем историю за нужный период"""
-        self.cursor.execute(f'''
-        SELECT
-            incomes.date,
-            incomes.value,
-            categories.name
-        FROM incomes
-        JOIN categories ON incomes.category_id = categories.id
-        WHERE incomes.user_id = ?
-            AND incomes.date BETWEEN datetime('now', '-{period} days') AND datetime('now', 'localtime')
-        ORDER BY incomes.date''', (user_id,))
-
-        income_data = self.cursor.fetchall()
-
-        self.cursor.execute(f'''
-                SELECT
-                    costs.date,
-                    costs.value,
-                    categories.name
-                FROM costs
-                JOIN categories ON costs.category_id = categories.id
-                WHERE costs.user_id = ?
-                    AND costs.date BETWEEN datetime('now', '-{period} days') AND datetime('now', 'localtime')
-                ORDER BY costs.date''', (user_id,))
-
-        spend_data = self.cursor.fetchall()
-
-        return self.history_format(income_data, spend_data)
-
-    def get_history_for_some_categories(self, user_id: int, categories, period):
         categories_mask = ', '.join(['?'] * len(categories))
-        print(categories_mask)
-        print(tuple(categories))
-        self.cursor.execute(f'''
-                                SELECT
-                                    incomes.date,
-                                    incomes.value,
-                                    categories.name
-                                FROM incomes
-                                JOIN categories ON incomes.category_id = categories.id
-                                WHERE incomes.user_id = ?
-                                    AND categories.name in ({categories_mask})
-                                    AND incomes.date BETWEEN datetime('now', '-{period} days') AND datetime('now', 'localtime')
-                                ORDER BY incomes.date''', (user_id, *categories))
+        categories_query = lambda mask: f"AND categories.name in ({mask})" * bool(categories_mask) # этот подзапрос будет добавлен только если были переданы параметры с категориями
+        sql_query = lambda fr, cat_query, mask: f'''
+        SELECT
+            {fr}.date,
+            {fr}.value,
+            categories.name
+        FROM {fr}
+        JOIN categories ON {fr}.category_id = categories.id
+        WHERE {fr}.user_id = ?
+            {categories_query(mask)}
+            AND {fr}.date BETWEEN datetime('now', '-{period} days') AND datetime('now', 'localtime')
+        ORDER BY {fr}.date'''
+
+        self.cursor.execute(sql_query('incomes', categories_query, categories_mask),
+                            (user_id, *categories))
+
         income_data = self.cursor.fetchall()
 
-        self.cursor.execute(f'''
-                SELECT
-                    costs.date,
-                    costs.value,
-                    categories.name
-                FROM costs
-                JOIN categories ON costs.category_id = categories.id
-                WHERE costs.user_id = ?
-                    AND categories.name in ({categories_mask})
-                    AND costs.date BETWEEN datetime('now', '-{period} days') AND datetime('now', 'localtime')
-                ORDER BY costs.date''', (user_id, *categories))
+        self.cursor.execute(sql_query('costs', categories_query, categories_mask),
+                            (user_id, *categories))
+
         spend_data = self.cursor.fetchall()
 
         return self.history_format(income_data, spend_data)

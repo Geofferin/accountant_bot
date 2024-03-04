@@ -122,11 +122,11 @@ async def load_history(message: types.Message, state: FSMContext) -> None:
         else:
             data = await state.get_data()
             if data['mode_categories'] == 'all':
-                history = BotDB.get_history_for_all_categories(period, message.from_user.id)
+                history = BotDB.get_history(period, message.from_user.id, tuple())
                 await message.answer(history)
             elif data['mode_categories'] == 'some':
                 categories = data['categories']
-                history =  BotDB.get_history_for_some_categories(message.from_user.id, categories, period)
+                history = BotDB.get_history(period, message.from_user.id, categories)
                 await message.answer(history)
 
 
