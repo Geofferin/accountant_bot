@@ -1,5 +1,6 @@
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
+
 
 def main_menu_kb() -> InlineKeyboardMarkup:
     kb = ReplyKeyboardBuilder()
@@ -15,16 +16,35 @@ def main_menu_kb() -> InlineKeyboardMarkup:
 
     return kb.as_markup()
 
-def get_inline_keyboard(categories):
+
+def get_inline_keyboard_for_categories(categories, mode: None | str = None):
     inline_keyboard = InlineKeyboardBuilder()
-    for i in categories:
-        inline_keyboard.add(InlineKeyboardButton(text = i, callback_data = i))
-    inline_keyboard.add(InlineKeyboardButton(text = 'Добавить категории', callback_data = 'add'))
-    if len(categories) > 0:
-        inline_keyboard.add(InlineKeyboardButton(text = 'Удалить категории', callback_data = 'remove'))
-    inline_keyboard.add(InlineKeyboardButton(text = 'Выход', callback_data = 'exit'))
-    inline_keyboard.adjust(3)
+    for category in categories:
+        inline_keyboard.add(InlineKeyboardButton(text = category, callback_data = 'BotCategory_' + category))
+    if mode is None:
+        inline_keyboard.row(InlineKeyboardButton(text = 'Добавить категории', callback_data = 'add'))
+        if len(categories) > 0:
+            inline_keyboard.add(InlineKeyboardButton(text = 'Удалить категории', callback_data = 'remove'))
+    if mode == 'history':
+        inline_keyboard.adjust(4)
+        inline_keyboard.row(InlineKeyboardButton(text = 'Завершить', callback_data = 'BotMenu_Завершить'))
+    inline_keyboard.row(InlineKeyboardButton(text = 'Выход', callback_data = 'BotMenu_exit'))
     return inline_keyboard.as_markup()
+
+
+def get_simple_inline_kb(width, *args, **kwargs) -> InlineKeyboardMarkup:
+    kb_builder = InlineKeyboardBuilder()
+    buttons = []
+    if args:
+        for button in args:
+            buttons.append(InlineKeyboardButton(text = button, callback_data = button))
+    if kwargs:
+        for button, text in kwargs.items():
+            buttons.append(InlineKeyboardButton(text = text, callback_data = button))
+
+    kb_builder.row(*buttons, width = width)
+
+    return kb_builder.as_markup()
 
 
 def del_category(categories):

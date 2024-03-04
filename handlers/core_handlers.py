@@ -5,7 +5,7 @@ from aiogram.fsm.context import FSMContext
 
 from database.database import Database
 from keyboards import keyboards
-from keyboards.keyboards import main_menu_kb
+from keyboards.keyboards import get_inline_keyboard_for_categories, get_simple_inline_kb, main_menu_kb
 from states.states import StateFilter, States
 
 """
@@ -34,7 +34,7 @@ TO DO:
     Остальные:
         запретить добавление дублирующей категории
         Если кто то добавит категорию с названием начинающимся с del_, то вместо записи, категория удалиться
-        Проверяет длину категорий целиком, будет ошибка если ввести несколько категорий на общую длину 44 символа, а запрет должен касаться только длинны одной категории.
+        Проверяет длину категорий целиком, будет ошибка если ввести неget_inline_keyboard_for_categoriesсколько категорий на общую длину 44 символа, а запрет должен касаться только длинны одной категории.
         не дать ввести команду в качестве названия категории
         обработать исключение для ввода слишком большого кол-ва дней, за которые должна выводиться история
     Полировка:
@@ -68,9 +68,48 @@ async def balance(message: types.Message, state: FSMContext) -> None:
 
 @router.message(Command("История"))
 async def history(message: types.Message, state: FSMContext) -> None:
-    await message.bot.send_message(message.from_user.id, "Enter the number of days for which the transaction history is needed")
-    await state.set_state(States.input_date)
+    await message.bot.send_message(message.from_user.id,
+                                   "Вы хотите посмотреть общую историю по всем категориям или историю по отдельным категориям?",
+                                   reply_markup = get_simple_inline_kb(1, 'Общая история', 'Отдельные категории'))
+    await state.set_state(States.input_choice_for_get_history)
 
+
+@router.callback_query(StateFilter(States.input_choice_for_get_history), F.data.in_(['Общая история', 'Отдельные категории']))
+async def get_history(cb: types.CallbackQuery, state: FSMContext) -> None:
+    if cb.data == 'Общая история':
+        await state.update_data(history_mode = 'all')
+    else:
+        categories = BotDB.get_categories(user_id = cb.from_user.id, operation = 'all')
+        await cb.message.edit_text(text = 'Отметьте все нужные вам категории в меню ниже',
+                                   reply_markup = get_inline_keyboard_for_categories(categories, mode = 'history'))
+
+
+@router.callback_query(StateFilter(States.input_choice_for_get_history), F.data.startswith('BotCategory_'))
+async def set_categories(cb: types.CallbackQuery, state: FSMContext) -> None:
+    category = cb.data.split('_')[1]
+    kb = cb.message.reply_markup
+    for row in kb.inline_keyboard:
+        for button in row:
+            if button.callback_data.split('_')[1] == category:
+                button.text = button.text + ' ✓'
+                break
+    await cb.message.edit_text(text = cb.message.text, reply_markup = kb)
+
+
+
+# @router.message(StateFilter(States.input_date))
+# async def load_history(message: types.Message, state: FSMContext) -> None:
+#     period = message.text
+#     try:
+#         int(period)
+#     except ValueError:
+#         await message.reply('You must enter a number')
+#     else:
+#         if int(period) <= 0:
+#             await message.reply('The number of days must be greater than zero')
+#         else:
+#             history = BotDB.get_history(period, user_id = message.from_user.id)
+#             await message.answer(history)
 
 @router.message(F.text.in_(["Записать доход", "Записать расход"]))
 async def note(message: types.Message, state: FSMContext) -> None:
@@ -82,10 +121,13 @@ async def note(message: types.Message, state: FSMContext) -> None:
         await state.update_data(operation = 'spend')
         operation = False
         categories = BotDB.get_categories(user_id = message.from_user.id, operation = 'spend')
-    await message.bot.send_message(message.from_user.id, "Выберите категорию", reply_markup = keyboards.get_inline_keyboard(categories))
+    await message.bot.send_message(message.from_user.id, "Выберите категорию",
+                                   reply_markup = keyboards.get_inline_keyboard_for_categories(
+                                       categories))
 
 
-@router.callback_query()
+@router.callback_query(F.data.startswith('BotCategory_'), ~StateFilter(States.input_choice_for_get_history))
+@router.callback_query(F.data.in_(['add', 'remove', 'exit']))
 async def vote_callback(callback: types.CallbackQuery, state: FSMContext):
     action = await state.get_data()
     if callback.data == 'add':
@@ -139,29 +181,15 @@ async def load_note(message: types.Message, state: FSMContext) -> None:
         if float(value) >= 0.01:
             if len(value) < 13:
                 action = await state.get_data()
+                category = action['category'].split('_')[1]
                 if action['operation'] == 'income':
-                    BotDB.add_income(message.from_user.id, value, action['category'])
+                    BotDB.add_income(message.from_user.id, value, category)
                     await message.answer(f'Доход {value} ₽ записан')
                 elif action['operation'] == 'spend':
-                    BotDB.add_cost(message.from_user.id, value, action['category'])
+                    BotDB.add_cost(message.from_user.id, value, category)
                     await message.answer(f'Расход {value} ₽ записан')
 
             else:
                 await message.reply('Неплохо...\nНо я не поверю что ты оперируешь такими суммами)')
         else:
             await message.reply('Сумма должна быть не меньше 0.01 ₽')
-
-
-@router.message(StateFilter(States.input_date))
-async def load_history(message: types.Message, state: FSMContext) -> None:
-    period = message.text
-    try:
-        int(period)
-    except ValueError:
-        await message.reply('You must enter a number')
-    else:
-        if int(period) <= 0:
-            await message.reply('The number of days must be greater than zero')
-        else:
-            history = BotDB.get_history(period, user_id = message.from_user.id)
-            await message.answer(history)

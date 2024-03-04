@@ -1,6 +1,5 @@
 import os
 import sqlite3
-from datetime import datetime
 from itertools import chain
 
 
@@ -56,6 +55,8 @@ class Database:
             self.cursor.execute("SELECT name FROM categories WHERE user_id = ? and type = 'income'", (user_id,))
         elif operation == 'spend':
             self.cursor.execute("SELECT name FROM categories WHERE user_id = ? and type = 'spend'", (user_id,))
+        elif operation == 'all':
+            self.cursor.execute('''SELECT name FROM categories WHERE user_id = ?''', (user_id,))
         result = str(self.cursor.fetchall()).replace('[', '').replace('(', '').replace(',', '').replace(')', '').replace(']', '').replace(
             "'", '').split()
         return result
@@ -69,9 +70,11 @@ class Database:
 
     def del_category(self, user_id, category_del, operation):
         if operation == 'income':
-            self.cursor.execute('''DELETE FROM categories WHERE user_id = ? and name = ? and type = ?''', (user_id, category_del, 'income'))
+            self.cursor.execute('''DELETE FROM categories WHERE user_id = ? and name = ? and type = ?''',
+                                (user_id, category_del, 'income'))
         elif operation == 'spend':
-            self.cursor.execute('''DELETE FROM categories WHERE user_id = ? and name = ? and type = ?''', (user_id, category_del, 'spend'))
+            self.cursor.execute('''DELETE FROM categories WHERE user_id = ? and name = ? and type = ?''',
+                                (user_id, category_del, 'spend'))
         self.conn.commit()
 
     '''
@@ -144,6 +147,8 @@ class Database:
             history += f'    Сумма: {value} ₽\n\n'
         return history
 
+    def get_history_for_some_categories(self, user_id: int, categories: tuple[tuple[str]]):
+        ...
     def close(self):
         """Закрываем соединение с БД"""
         self.conn.close()

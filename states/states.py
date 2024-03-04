@@ -8,5 +8,6 @@ storage = MemoryStorage()
 class States(StatesGroup):
     default = default_state
     input_money = State()
+    input_choice_for_get_history = State()
     input_date = State()
     input_new_category = State()
