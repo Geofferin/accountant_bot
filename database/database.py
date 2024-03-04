@@ -117,7 +117,7 @@ class Database:
         """Получаем историю за нужный период"""
         categories_mask = ', '.join(['?'] * len(categories))
         categories_query = lambda mask: f"AND categories.name in ({mask})" * bool(categories_mask) # этот подзапрос будет добавлен только если были переданы параметры с категориями
-        sql_query = lambda fr, cat_query, mask: f'''
+        sql_query = lambda fr, cat_query, mask, per: f'''
         SELECT
             {fr}.date,
             {fr}.value,
@@ -126,15 +126,15 @@ class Database:
         JOIN categories ON {fr}.category_id = categories.id
         WHERE {fr}.user_id = ?
             {categories_query(mask)}
-            AND {fr}.date BETWEEN datetime('now', '-{period} days') AND datetime('now', 'localtime')
+            AND {fr}.date BETWEEN datetime('now', '-{per} days') AND datetime('now', 'localtime')
         ORDER BY {fr}.date'''
 
-        self.cursor.execute(sql_query('incomes', categories_query, categories_mask),
+        self.cursor.execute(sql_query('incomes', categories_query, categories_mask, period),
                             (user_id, *categories))
 
         income_data = self.cursor.fetchall()
 
-        self.cursor.execute(sql_query('costs', categories_query, categories_mask),
+        self.cursor.execute(sql_query('costs', categories_query, categories_mask, period),
                             (user_id, *categories))
 
         spend_data = self.cursor.fetchall()

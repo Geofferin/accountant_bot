@@ -26,7 +26,7 @@ def get_inline_keyboard_for_categories(categories, mode: None | str = None):
         if len(categories) > 0:
             inline_keyboard.add(InlineKeyboardButton(text = 'Удалить категории', callback_data = 'remove'))
     if mode == 'history':
-        inline_keyboard.adjust(4)
+        inline_keyboard.adjust(2)
         inline_keyboard.row(InlineKeyboardButton(text = 'Завершить', callback_data = 'BotMenu_Завершить'))
     inline_keyboard.row(InlineKeyboardButton(text = 'Выход', callback_data = 'BotMenu_exit'))
     return inline_keyboard.as_markup()

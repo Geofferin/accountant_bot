@@ -77,7 +77,9 @@ async def history(message: types.Message, state: FSMContext) -> None:
 @router.callback_query(StateFilter(States.input_choice_for_get_history), F.data.in_(['Общая история', 'Отдельные категории']))
 async def get_history(cb: types.CallbackQuery, state: FSMContext) -> None:
     if cb.data == 'Общая история':
-        await state.update_data(history_mode = 'all')
+        await state.set_state(States.input_date)
+        await state.update_data(mode_categories = 'all')
+        await cb.message.edit_text("Enter the number of days for which the transaction history is needed")
     else:
         categories = BotDB.get_categories(user_id = cb.from_user.id, operation = 'all')
         await cb.message.edit_text(text = 'Отметьте все нужные вам категории в меню ниже',
@@ -91,9 +93,12 @@ async def set_categories(cb: types.CallbackQuery, state: FSMContext) -> None:
     for row in kb.inline_keyboard:
         for button in row:
             if button.callback_data.split('_')[1] == category:
-                button.text = button.text + ' ✓'
+                if not button.text.endswith(' ✓'):
+                    button.text = button.text + ' ✓'
+                    await cb.message.edit_text(text = cb.message.text, reply_markup = kb)
+                else:
+                    await cb.answer()
                 break
-    await cb.message.edit_text(text = cb.message.text, reply_markup = kb)
 
 
 @router.callback_query(F.data == 'BotMenu_Завершить')
@@ -107,6 +112,13 @@ async def get_categories(cb: types.CallbackQuery, state: FSMContext) -> None:
     await state.update_data(categories = categories, mode_categories = 'some')
     await cb.message.edit_text("Enter the number of days for which the transaction history is needed")
     await state.set_state(States.input_date)
+
+
+@router.callback_query(F.data == 'BotMenu_exit')
+async def exit(cb: types.CallbackQuery, state: FSMContext) -> None:
+    await state.set_state(States.default)
+    await cb.message.answer('Возврат в главное меню')
+    await cb.message.bot.send_message(cb.from_user.id, "Добро пожаловать!", reply_markup = main_menu_kb())
 
 
 @router.message(StateFilter(States.input_date))

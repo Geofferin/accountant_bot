@@ -7,7 +7,7 @@ from handlers import core_handlers
 from states.states import storage
 from menu.menu import set_menu
 from database.database import Database
-
+from test_md import TestMd
 db = Database()
 
 async def main():
@@ -15,6 +15,7 @@ async def main():
     dp = Dispatcher(storage=storage)
     dp.startup.register(set_menu)
     dp.include_router(core_handlers.router)
+    dp.callback_query.outer_middleware(TestMd())
     await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
 
