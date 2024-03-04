@@ -96,20 +96,39 @@ async def set_categories(cb: types.CallbackQuery, state: FSMContext) -> None:
     await cb.message.edit_text(text = cb.message.text, reply_markup = kb)
 
 
+@router.callback_query(F.data == 'BotMenu_Завершить')
+async def get_categories(cb: types.CallbackQuery, state: FSMContext) -> None:
+    categories = set()
+    for row in cb.message.reply_markup.inline_keyboard:
+        for button in row:
+            if button.text.endswith(' ✓'):
+                category = button.text.strip(' ✓')
+                categories.add(category)
+    await state.update_data(categories = categories, mode_categories = 'some')
+    await cb.message.edit_text("Enter the number of days for which the transaction history is needed")
+    await state.set_state(States.input_date)
 
-# @router.message(StateFilter(States.input_date))
-# async def load_history(message: types.Message, state: FSMContext) -> None:
-#     period = message.text
-#     try:
-#         int(period)
-#     except ValueError:
-#         await message.reply('You must enter a number')
-#     else:
-#         if int(period) <= 0:
-#             await message.reply('The number of days must be greater than zero')
-#         else:
-#             history = BotDB.get_history(period, user_id = message.from_user.id)
-#             await message.answer(history)
+
+@router.message(StateFilter(States.input_date))
+async def load_history(message: types.Message, state: FSMContext) -> None:
+    period = message.text
+    try:
+        int(period)
+    except ValueError:
+        await message.reply('You must enter a number')
+    else:
+        if int(period) <= 0:
+            await message.reply('The number of days must be greater than zero')
+        else:
+            data = await state.get_data()
+            if data['mode_categories'] == 'all':
+                history = BotDB.get_history_for_all_categories(period, message.from_user.id)
+                await message.answer(history)
+            elif data['mode_categories'] == 'some':
+                categories = data['categories']
+                history =  BotDB.get_history_for_some_categories(message.from_user.id, categories, period)
+                await message.answer(history)
+
 
 @router.message(F.text.in_(["Записать доход", "Записать расход"]))
 async def note(message: types.Message, state: FSMContext) -> None:
