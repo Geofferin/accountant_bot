@@ -10,6 +10,7 @@ from database.database import Database
 
 db = Database()
 
+
 async def main():
     bot = Bot(BOT_TOKEN)
     dp = Dispatcher(storage=storage)

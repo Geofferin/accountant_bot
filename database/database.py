@@ -48,8 +48,6 @@ class Database:
         self.cursor.execute("INSERT INTO users (id) VALUES (?)", (user_id,))
         return self.conn.commit()
 
-    """В этих двух функциях используется глобальная переменная"""
-
     def get_categories(self, user_id, operation):
         """Получаем категории доходов и расходов для пользователя"""
         if operation == 'income':
@@ -73,16 +71,6 @@ class Database:
         elif operation == 'spend':
             self.cursor.execute('''DELETE FROM categories WHERE user_id = ? and name = ? and type = ?''', (user_id, category_del, 'spend'))
         self.conn.commit()
-
-    '''
-    TO DO:
-    ВО ПЕРВЫХ, ОТРЕДАКТИРОВАТЬ САМУ БАЗУ, РАЗДЕЛИВ ДОХОДЫ И РАСХОДЫ = DONE
-        сделать добавление записей в нужную таблицу = DONE
-        в базе отображается другой часовой пояс, нужно поправить на московский - https://qna.habr.com/q/1090250 = DONE
-    ВО ВТОРЫХ РАЗОБРАТЬСЯ ТАБЛИЦЕЙ ПОЛЬЗОВАТЕЛЕЙ, НУЖНА ЛИ ОНА ВООБЩЕ = Таблица крайне необходима, иначе каждому п-лю будут выводиться вообще все записи.
-    В ТРЕТЬИХ СДЕЛАТЬ ПОДСЧЕТ ТЕКУЩЕГО БАЛАНСА И ДОБАВИТЬ КОМАНДУ ДЛЯ ЕГО ВЫВОДА В БОТ = DONE
-    А ТАК ЖЕ СДЕЛАТЬ ВЫВОД СПИСКА ОПЕРАЦИЙ (ОН И ТАК ЕСТЬ, ПРОСТО ДОРАБОТАТЬ ПОД СЕБЯ) = DONE
-    '''
 
     def add_income(self, user_id, value, category):
         """Создаем запись о доходах"""
